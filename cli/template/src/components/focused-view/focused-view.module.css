@@ -1,5 +1,5 @@
 .container {
-  height: 40rem;
+  /* height: 40rem; */
   width: 100%;
 
   padding: 1.5rem;
@@ -7,6 +7,17 @@
   background-color: #161616;
   color: white;
   overflow: scroll;
+}
+
+.line {
+  display: flex;
+  padding: 0 .5em;
+  border-radius: .5em;
+}
+
+.line:hover {
+  background-color: rgba(0, 0, 0, .2);
+  transition-duration: .1s;
 }
 
 .row {
@@ -40,6 +51,8 @@
 
 .rowArrow {
   align-self: center;
+  display: flex;
+  width: 1em;
 }
 
 .colorRed {

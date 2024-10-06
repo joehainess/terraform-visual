@@ -1,6 +1,7 @@
 import styles from '@app/components/focused-view/focused-view.module.css'
 import { Entities } from '@app/data'
 import isEqual from 'lodash/isEqual'
+import { diff, diffString } from 'json-diff'
 import { BsArrowRight } from 'react-icons/bs'
 
 interface Props {
@@ -109,24 +110,105 @@ const ChangedField = (props: ChangedFieldProps) => {
     actionAlias,
   )
 
-  return (
-    <div className={styles.row}>
-      <div className={styles.rowHeader}>{field}</div>
-      <div className={`${styles.rowBefore} ${beforeChangeColorClassName}`}>
-        <pre>{prettifyJson(beforeChange)}</pre>
+  if (isEqual(beforeChange, afterChange)) {
+    return (
+      <div className={styles.row}>
+        <div className={styles.rowHeader}>{field}</div>
+        <div className={`${styles.rowBefore}`}>
+          <pre>{prettifyJson(beforeChange)}</pre>
+        </div>
       </div>
-      {!isEqual(beforeChange, afterChange) && (
-        <>
-          <div className={styles.rowArrow}>
-            <BsArrowRight />
+    )
+  }
+
+  const [beforeJson, b] = tryParseJson(beforeChange);
+  const [afterJson, a] = tryParseJson(afterChange);
+  if (a && b) {
+    // Deal with JSON parsing
+
+    let jsonDiffString: string[] = []
+    diffString(beforeJson, afterJson, { full: true }).split("\n")
+    .forEach((line, index, array) => {
+      if (/^.*\]$/.test(line)) return;
+      if (index <= array.length-1 && /^.*\[$/.test(line) && /^.*\]$/.test(array[index+1])) {
+        jsonDiffString.push(`${line}]`);
+      }
+      else jsonDiffString.push(line);
+    })
+
+    let beforeBuffer = [], afterBuffer = []
+    const rows = []
+    const remPattern = /^\-.*/, addPattern = /^\+.*/
+
+    for (let i=0; i<jsonDiffString.length; i++) {
+      const line = jsonDiffString[i];
+      if (remPattern.test(line)) {
+        beforeBuffer.push(line);
+      }
+      else if (addPattern.test(line)) {
+        afterBuffer.push(line);
+      }
+      else {
+        const totalRows = Math.max(beforeBuffer.length, afterBuffer.length)
+        for (let i=0; i<totalRows; i++) {
+          const beforeLine = (i < beforeBuffer.length ? beforeBuffer[i] : " ")
+          const afterLine  = (i < afterBuffer.length  ? afterBuffer[i]  : " ")
+          rows.push(
+            <div className={styles.line}>
+              <div className={`${styles.rowBefore} ${styles.colorRed}`}>
+                <pre>{beforeLine}</pre>
+              </div>
+              <div className={styles.rowArrow}>
+                <BsArrowRight />
+              </div>
+              <div className={`${styles.rowAfter} ${styles.colorGreen}`}>
+                <pre>{afterLine}</pre>
+              </div>
+            </div>
+          )
+          beforeBuffer = []
+          afterBuffer = []
+        }
+
+        rows.push(
+          <div className={styles.line}>
+            <div className={`${styles.rowBefore} ${styles.colorYellow}`}>
+              <pre>{line}</pre>
+            </div>
+            <div className={styles.rowArrow}></div>
+            <div className={`${styles.rowAfter} ${styles.colorYellow}`}>
+              <pre>{line}</pre>
+            </div>
           </div>
-          <div className={`${styles.rowAfter} ${afterChangeColorClassName}`}>
-            <pre>{prettifyJson(afterChange)}</pre>
-          </div>
-        </>
-      )}
-    </div>
-  )
+        )
+      }
+    } 
+
+    return (
+      <div className={styles.row}>
+        <div className={styles.rowHeader}>{field}</div>
+        <div>{rows}</div>
+      </div>
+    )
+  }
+  else {
+
+    return (
+      <div className={styles.row}>
+        <div className={styles.rowHeader}>{field}</div>
+        <div className={`${styles.rowBefore} ${beforeChangeColorClassName}`}>
+          <pre>{prettifyJson(beforeChange)}</pre>
+        </div>
+        <div className={styles.rowArrow}>
+          <BsArrowRight />
+        </div>
+        <div className={`${styles.rowAfter} ${afterChangeColorClassName}`}>
+          <pre>{prettifyJson(afterChange)}</pre>
+        </div>
+      </div>
+    )
+  }
+
 }
 
 const getFieldChangeColorClassName = (
@@ -152,10 +234,10 @@ const prettifyJson = (input: string): string => {
   const [parsedJson, isValidJson] = tryParseJson(input)
 
   if (isValidJson) {
-    return JSON.stringify(parsedJson, null, 4)
+    return JSON.stringify(parsedJson, null, 2)
   }
 
-  return JSON.stringify(input, null, 4)
+  return JSON.stringify(input, null, 2)
 }
 
 const tryParseJson = (input: string): [{}, boolean] => {
